@@ -123,22 +123,25 @@ class AlignmentCommand(sublime_plugin.TextCommand):
             if perform_mid_line and alignment_chars:
                 done = False
                 max_col = 0
-                match_col = 0
+                next_base_col = 0
                 while not done:
                     points = []
+                    base_col = next_base_col
                     for row in line_nums:
-                        pt = view.text_point(row, match_col)
+                        col_offset = 0
+                        pt = view.text_point(row, base_col)
                         matching_region = view.find(alignment_pattern, pt)
                         if not matching_region:
                             continue
-
+                        print('Line: ', row, 'find from:', base_col, 'found at:', matching_region.a)
                         matching_char_pt = matching_region.a
                         insert_pt = matching_char_pt
 
                         # If the equal sign is part of a multi-character
                         # operator, bring the first character forward also
-                        if view.substr(insert_pt-1) in alignment_prefix_chars:
+                        if view.substr(insert_pt-1) in alignment_prefix_chars and view.substr(insert_pt) == '=':
                             insert_pt -= 1
+                            col_offset = 1
 
                         space_pt = insert_pt
                         while view.substr(space_pt-1) in [' ', '\t']:
@@ -159,6 +162,9 @@ class AlignmentCommand(sublime_plugin.TextCommand):
 
                         points.append(insert_pt)
                         max_col = max([max_col, normed_rowcol(view, space_pt)[1]])
+                        next_base_col = max(next_base_col, max_col)
+                        if max_col == normed_rowcol(view, space_pt)[1]:
+                            next_base_col += col_offset
 
                     # The adjustment takes care of correcting point positions
                     # since spaces are being inserted, which changes the points
@@ -176,7 +182,7 @@ class AlignmentCommand(sublime_plugin.TextCommand):
                             adjustment += convert_to_mid_line_tabs(view, edit,
                                 tab_size, pt, length)
 
-                    match_col = max_col + adjustment + 1
+                    next_base_col += 1
 
                     if len(points) > 1:
                         done = False
